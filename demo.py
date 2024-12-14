@@ -41,7 +41,7 @@ def save_env_vars(device_id=None, wxid=None, token=None):
         for key, value in env_content.items():
             f.write(f'{key}={value}\n')
     
-    print(f"环境变量�����存到.env")
+    print(f"环境变量已保存到.env")
 
 def load_env_vars():
     """加载环境变量
@@ -178,7 +178,7 @@ def login_test():
         print(f"appId: {app_id}")
         print(f"uuid: {uuid}")
         
-        # 在获���二维码数据后调用
+        # 在获取二维码数据后调用
         qr_url = resp['data']['qrData']  # 获取二维码URL
         display_qr_in_terminal(qr_url)
         
@@ -338,20 +338,19 @@ def test_callback():
             print("未获取到token，请先登录")
             return
             
-        # 设置回调地址
-        callback_url = "http://172.22.15.21:8080"
+        # 修改回调地址，确保路径正确
+        callback_url = "http://172.22.15.21:8080/v2/api/callback/collect"  # 修改这里
         print(f"\n设置回调地址: {callback_url}")
         resp = LoginApi.set_callback(token, callback_url)
         print(f"设置结果: {resp}")
     
-        
     except Exception as e:
         print(f"设置回调地址失败: {str(e)}")
 
 if __name__ == "__main__":
     try:
         print("步骤1: 检查设备状态...")
-        # ��.env加载环境变量
+        # 从.env加载环境变量
         env_vars = load_env_vars()
         device_id = env_vars.get('device_id')
         wxid = env_vars.get('wxid')

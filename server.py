@@ -44,7 +44,8 @@ def wechat_callback():
         logging.info(f"收到新消息: {json.dumps(data, ensure_ascii=False)}")
         
         # 根据消息类型处理
-        msg_type = data.get("type")
+        msg_type = data.get("Data", {}).get("MsgType")
+        
         handlers = {
             MessageType.Text: handle_text_message,
             MessageType.Image: handle_image_message, 
@@ -63,35 +64,30 @@ def wechat_callback():
             MessageType.VideoAccount: handle_video_account_message,
             MessageType.Revoke: handle_revoke_message,
             MessageType.Pat: handle_pat_message,
-            37: handle_friend_request, # 好友请求
-            10000: handle_system_message # 系统消息
+            37: handle_friend_request,
+            10000: handle_system_message
         }
         
         handler = handlers.get(msg_type)
         if handler:
-            handler(data)
+            handler(data.get("Data", {}))
         else:
             logging.info(f"未处理的消息类型: {msg_type}")
             
         return jsonify({"ret": 200, "msg": "success"})
         
     except Exception as e:
-        logging.error(f"处理消息失败: {str(e)}")
+        logging.error(f"处��消息失败: {str(e)}")
         return jsonify({"ret": 500, "msg": str(e)})
 
 def handle_text_message(data):
     """处理文本消息"""
     try:
-        from_user = data.get("fromUser")
-        content = data.get("content")
-        create_time = datetime.fromtimestamp(data.get("createTime", 0))
-        room_id = data.get("chatroomId")  # 群聊ID
+        from_user = data.get("FromUserName", {}).get("string")
+        content = data.get("Content", {}).get("string")
+        create_time = datetime.fromtimestamp(data.get("CreateTime", 0))
         
-        if room_id:
-            logging.info(f"收到来自群 {room_id} 中 {from_user} 的文本消息: {content}")
-        else:
-            logging.info(f"收到来自 {from_user} 的文本消息: {content}")
-            
+        logging.info(f"收到来自 {from_user} 的文本消息: {content}")
         logging.info(f"消息时间: {create_time}")
         
         # 自动回复示例
@@ -298,7 +294,7 @@ def handle_room_invitation_message(data):
         inviter = data.get("inviter")
         
         logging.info(f"收到来自 {from_user} 的群邀请消息:")
-        logging.info(f"群名称: {room_name}")
+        logging.info(f"群名: {room_name}")
         logging.info(f"邀请人: {inviter}")
         
     except Exception as e:
