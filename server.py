@@ -28,17 +28,6 @@ def collect_callback():
         # 获取POST请求中的数据
         data = request.get_json()
         
-        # 获取消息ID
-        msg_id = data.get('msgId')
-        
-        # 检查消息是否已经处理过
-        if msg_id in message_cache:
-            logging.info(f"消息 {msg_id} 已经处理过，忽略")
-            return jsonify({"status": "success", "message": "duplicate message"}), 200
-            
-        # 将新消息ID添加到缓存
-        message_cache.append(msg_id)
-        
         # 将数据转换为格式化的JSON字符串
         formatted_data = json.dumps(data, indent=2, ensure_ascii=False)
         
@@ -51,52 +40,65 @@ def collect_callback():
         logging.info(f"收到新消息: {formatted_data}")
 
         # 解析消息内容
-        msg_type = data.get('type')
-        content = data.get('content', '')
-        from_user = data.get('fromUser', '')
-        from_nickname = data.get('fromNickName', '')
-        chatroom_id = data.get('chatroomId')
+        msg_data = data.get('Data', {})
+        msg_type = msg_data.get('MsgType')
+        content = msg_data.get('Content', {}).get('string', '')
+        from_user = msg_data.get('FromUserName', {}).get('string', '')
+        to_user = msg_data.get('ToUserName', {}).get('string', '')
+
+        # 判断是否为群消息
+        is_chatroom = '@chatroom' in from_user
+        
+        # 如果是群消息，解析发送者昵称和内容
+        if is_chatroom and ':' in content:
+            sender_wxid, text = content.split(':', 1)
+            text = text.strip()
+        else:
+            sender_wxid = from_user
+            text = content
 
         # 根据消息类型设置显示文本
-        text = content
-        if msg_type in [3, 47]:  # 图片或表情
-            text = '[图片]'
+        if msg_type == 1:  # 文本消息
+            display_text = text
+        elif msg_type == 3:  # 图片
+            display_text = '[图片]'
         elif msg_type == 43:  # 视频
-            text = '[视频]'
+            display_text = '[视频]'
         elif msg_type == 34:  # 语音
-            text = '[语音]'
+            display_text = '[语音]'
         elif msg_type == 49:  # 分享
-            text = '[分享]'
+            display_text = '[分享]'
         elif msg_type == 48:  # 位置
-            text = '[位置]'
+            display_text = '[位置]'
         elif msg_type == 4903:  # 文件
-            text = '[文件]'
-        elif msg_type == 4922:  # 红包
-            text = '[红包]'
-        elif msg_type == 4923:  # 转账
-            text = f'[转账] {content}'
+            display_text = '[文件]'
+        else:
+            display_text = f'[未知消息类型 {msg_type}]'
 
         # 转发消息到飞书
-        if msg_type == 1:  # 文本消息
-            if chatroom_id:
-                # 群消息
-                feishu_chat_id = get_chat_id_by_chatroomname(chatroom_id)
-                if feishu_chat_id:
-                    formatted_message = f"{from_nickname}: {text}"
-                    if feishu_api.send_text(feishu_chat_id, formatted_message):
-                        logging.info(f"群消息转发成功: {formatted_message}")
-                    else:
-                        logging.error(f"群消息转发失败: {formatted_message}")
-            else:
-                # 私聊消息
-                feishu_chat_id = get_chat_id_by_nickname(from_nickname)
-                if feishu_chat_id:
-                    if feishu_api.send_text(feishu_chat_id, text):
-                        logging.info(f"私聊消息转发成功 from {from_nickname}: {text}")
-                    else:
-                        logging.error(f"私聊消息转发失败 from {from_nickname}: {text}")
+        if is_chatroom:
+            # 群消息
+            feishu_chat_id = get_chat_id_by_chatroomname(from_user)
+            if feishu_chat_id:
+                formatted_message = f"{sender_wxid}: {display_text}"
+                logging.info(f"尝试转发群消息到飞书: {formatted_message}")
+                if feishu_api.send_text(feishu_chat_id, formatted_message):
+                    logging.info(f"群消息转发成功: {formatted_message}")
                 else:
-                    logging.warning(f"未找到用户 {from_nickname} 对应的飞书chat_id")
+                    logging.error(f"群消息转发失败: {formatted_message}")
+            else:
+                logging.error(f"未找到群聊 {from_user} 对应的飞书chat_id")
+        else:
+            # 私聊消息
+            feishu_chat_id = get_chat_id_by_nickname(sender_wxid)
+            if feishu_chat_id:
+                logging.info(f"尝试转发私聊消息到飞书 from {sender_wxid}: {display_text}")
+                if feishu_api.send_text(feishu_chat_id, display_text):
+                    logging.info(f"私聊消息转发成功 from {sender_wxid}: {display_text}")
+                else:
+                    logging.error(f"私聊消息转发失败 from {sender_wxid}: {display_text}")
+            else:
+                logging.warning(f"未找到用户 {sender_wxid} 对应的飞书chat_id")
 
         return jsonify({"status": "success"}), 200
 
