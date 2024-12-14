@@ -1,0 +1,24 @@
+# Web 框架
+flask==3.0.0
+
+# HTTP 请求
+requests==2.31.0
+
+# 环境变量管理
+python-dotenv==1.0.0
+
+# 二维码生成
+qrcode==7.4.2
+Pillow==10.2.0
+
+# 日期时间处理
+python-dateutil==2.8.2
+
+# 日志管理
+colorlog==6.8.0
+
+# JSON处理
+simplejson==3.19.2
+
+# 线程安全
+threading2==0.3.1 
