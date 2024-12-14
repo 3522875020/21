@@ -61,5 +61,21 @@ def import_default():
         else:
             click.echo(f"导入映射失败: {mapping['source_id']}")
 
+@cli.command()
+def update():
+    """从微信API更新映射关系"""
+    from utils.wechat_info import wechat_info
+    
+    click.echo("开始更新映射关系...")
+    mappings = wechat_info.update_mappings()
+    
+    if mappings:
+        click.echo(f"\n成功获取 {len(mappings)} 个映射关系:")
+        for mapping in mappings:
+            click.echo(f"[{mapping['type']}] {mapping['name']}")
+            click.echo(f"  ID: {mapping['source_id']}\n")
+    else:
+        click.echo("未获取到任何映射关系")
+
 if __name__ == '__main__':
     cli() 
