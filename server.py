@@ -44,11 +44,24 @@ def wechat_callback():
         logging.info(f"收到新消息: {json.dumps(data, ensure_ascii=False)}")
         
         # 根据消息类型处理
-        msg_type = data.get("Data", {}).get("MsgType")
+        msg_data = data.get("Data", {})
+        msg_type = msg_data.get("MsgType")
         
+        # 如果是文本消息,需要特殊处理
+        if msg_type == MessageType.Text:
+            # 构造处理所需的数据结构
+            process_data = {
+                "fromUser": msg_data.get("FromUserName", {}).get("string"),
+                "content": msg_data.get("Content", {}).get("string"),
+                "createTime": msg_data.get("CreateTime"),
+                "msgId": msg_data.get("MsgId"),
+                "newMsgId": msg_data.get("NewMsgId")
+            }
+            handle_text_message(process_data)
+            return jsonify({"ret": 200, "msg": "success"})
+            
         handlers = {
-            MessageType.Text: handle_text_message,
-            MessageType.Image: handle_image_message, 
+            MessageType.Image: handle_image_message,
             MessageType.Voice: handle_voice_message,
             MessageType.Video: handle_video_message,
             MessageType.Contact: handle_contact_message,
@@ -70,22 +83,22 @@ def wechat_callback():
         
         handler = handlers.get(msg_type)
         if handler:
-            handler(data.get("Data", {}))
+            handler(msg_data)
         else:
             logging.info(f"未处理的消息类型: {msg_type}")
             
         return jsonify({"ret": 200, "msg": "success"})
         
     except Exception as e:
-        logging.error(f"处��消息失败: {str(e)}")
+        logging.error(f"处理消息失败: {str(e)}")
         return jsonify({"ret": 500, "msg": str(e)})
 
 def handle_text_message(data):
     """处理文本消息"""
     try:
-        from_user = data.get("FromUserName", {}).get("string")
-        content = data.get("Content", {}).get("string")
-        create_time = datetime.fromtimestamp(data.get("CreateTime", 0))
+        from_user = data.get("fromUser")
+        content = data.get("content") 
+        create_time = datetime.fromtimestamp(data.get("createTime", 0))
         
         logging.info(f"收到来自 {from_user} 的文本消息: {content}")
         logging.info(f"消息时间: {create_time}")
