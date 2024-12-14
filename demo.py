@@ -11,6 +11,7 @@ from api.message_api import MessageApi
 from utils.http_util import HttpUtil
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+import sys  # 添加这行导入
 
 def save_env_vars(device_id=None, wxid=None, token=None):
     """保存环境变量到.env文件
@@ -40,7 +41,7 @@ def save_env_vars(device_id=None, wxid=None, token=None):
         for key, value in env_content.items():
             f.write(f'{key}={value}\n')
     
-    print(f"环境变量已保存到.env")
+    print(f"环境变量�����存到.env")
 
 def load_env_vars():
     """加载环境变量
@@ -146,10 +147,6 @@ def login_test():
         env_vars = load_env_vars()
         device_id = env_vars['device_id']
         
-        if not device_id:
-            print("请先登录获取设备ID")
-            return
-        
         # 2. 获取token
         print("获取token...")
         resp = LoginApi.get_token()
@@ -164,9 +161,8 @@ def login_test():
         resp = LoginApi.check_online(device_id)
         is_online = resp["data"]
         if not is_online:
-            print("设备离线，无法登录!")
-            return
-        
+            print("设备离线，开始重新登录...")
+            
         # 4. 获取登录二维码
         print("\n获取登录二维码...")
         resp = LoginApi.get_qr(device_id)  # 使用保存的设备ID
@@ -182,7 +178,7 @@ def login_test():
         print(f"appId: {app_id}")
         print(f"uuid: {uuid}")
         
-        # 在获取二维码数据后调用
+        # 在获���二维码数据后调用
         qr_url = resp['data']['qrData']  # 获取二维码URL
         display_qr_in_terminal(qr_url)
         
@@ -255,47 +251,62 @@ class MessageHandler(BaseHTTPRequestHandler):
             self.end_headers()
     
     def handle_message(self, message):
-        """处理接收到的消息
-        
-        Args:
-            message: 消息字典
-        """
+        """处理接收到的消息"""
         try:
             print("\n收到新消息:")
             print(json.dumps(message, ensure_ascii=False, indent=2))
             
-            # 这里可以根据消息类型进行不同的处理
             msg_type = message.get("type")
-            if msg_type == 1:  # 文本消息
-                self.handle_text_message(message)
-            elif msg_type == 3:  # 图片消息
-                self.handle_image_message(message)
-            # 可以添加更多消息类型的处理...
             
+            # 根据消息类型分发处理
+            handlers = {
+                1: self.handle_text_message,
+                3: self.handle_image_message,
+                34: self.handle_voice_message,
+                43: self.handle_video_message,
+                42: self.handle_contact_message,
+                47: self.handle_emoji_message,
+                48: self.handle_location_message,
+                49: self.handle_link_message,
+                4903: self.handle_file_message,
+                4925: self.handle_miniapp_message,
+                4923: self.handle_transfer_message,
+                4922: self.handle_redpacket_message,
+                4921: self.handle_room_invitation_message,
+                4920: self.handle_app_message,
+                4919: self.handle_video_account_message,
+                4918: self.handle_revoke_message,
+                4917: self.handle_pat_message
+            }
+            
+            handler = handlers.get(msg_type)
+            if handler:
+                handler(message)
+            else:
+                print(f"未知的消息类型: {msg_type}")
+                
         except Exception as e:
             print(f"处理消息详情失败: {str(e)}")
-    
+
     def handle_text_message(self, message):
         """处理文本消息"""
         try:
-            content = message.get("content")
             from_user = message.get("fromUser")
-            print(f"收到来自 {from_user} 的文本消息: {content}")
+            content = message.get("content")
+            room_id = message.get("chatroomId")
             
-            # 这里可以添加自动回复等功能
-            
+            if room_id:
+                print(f"收到来自群 {room_id} 中 {from_user} 的文本消息: {content}")
+            else:
+                print(f"收到来自 {from_user} 的文本消息: {content}")
+                
+            # 自动回复示例
+            if content == "ding":
+                # TODO: 实现自动回复
+                pass
+                
         except Exception as e:
             print(f"处理文本消息失败: {str(e)}")
-    
-    def handle_image_message(self, message):
-        """处理图片消息"""
-        try:
-            from_user = message.get("fromUser")
-            image_url = message.get("image", {}).get("url")
-            print(f"收到来自 {from_user} 的图片消息: {image_url}")
-            
-        except Exception as e:
-            print(f"处理图片消息失败: {str(e)}")
 
 def start_message_server(port=2531):
     """启动消息服务器
@@ -328,46 +339,49 @@ def test_callback():
             return
             
         # 设置回调地址
-        callback_url = "http://39.107.192.142:8080/v2/api/callback/collect"
+        callback_url = "http://172.22.15.21:8080"
         print(f"\n设置回调地址: {callback_url}")
         resp = LoginApi.set_callback(token, callback_url)
         print(f"设置结果: {resp}")
-        
-        # 启动消息监听服务器
-        message_thread = threading.Thread(target=start_message_server)
-        message_thread.daemon = True  # 设置为守护线程
-        message_thread.start()
-        
-        # 保持主线程运行
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            print("\n程序已停止")
+    
         
     except Exception as e:
         print(f"设置回调地址失败: {str(e)}")
 
 if __name__ == "__main__":
-    # 1. 先检查在线状态
-    env_vars = load_env_vars()
-    device_id = env_vars['device_id']
-    
-    if device_id:
-        print("设备ID已存在，检查在线状态...")
-        # 确保token已设置
-        token = env_vars['token']
-        if not token:
-            print("未获取到token，请先登录")
-        else:
-            HttpUtil.set_token(token)  # 设置token
+    try:
+        print("步骤1: 检查设备状态...")
+        # ��.env加载环境变量
+        env_vars = load_env_vars()
+        device_id = env_vars.get('device_id')
+        wxid = env_vars.get('wxid')
+        
+        # 获取token并设置
+        print("\n获取token...")
+        resp = LoginApi.get_token()
+        token = resp["data"]
+        print(f"获取token成功: {token}")
+        HttpUtil.set_token(token)
+        
+        # 检查设备在线状态
+        if device_id and wxid:
+            print("\n检查设备在线状态...")
             resp = LoginApi.check_online(device_id)
             is_online = resp["data"]
+            
             if is_online:
-                print("设备在线，直接设置回调地址...")
+                print(f"设备在线! 设备ID: {device_id}, 微信ID: {wxid}")
+                # 步骤2: 设置回调地址
+                print("\n步骤2: 设置回调地址...")
                 test_callback()
-            else:
-                print("设备离线，无法设置回调地址。")
-    else:
-        # 2. 如果没有设备ID，则进行登录
+                sys.exit(0)  # 使用sys.exit()替代return
+        
+        # 如果没有设备ID或wxid，或者设备离线，执行登录流程
+        print("执行登录流程...")
         login_test()
+        
+    except Exception as e:
+        print(f"程序运行出错: {str(e)}")
+        if "token" in str(e).lower():
+            print("Token错误，尝试重新登录...")
+            login_test()
